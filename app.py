@@ -6,6 +6,8 @@ from Crypto.Util.Padding import pad
 import random
 import binascii
 from concurrent.futures import ThreadPoolExecutor
+import time
+from threading import Semaphore
 
 app = Flask(__name__)
 
@@ -13,6 +15,9 @@ app = Flask(__name__)
 AES_KEY = b'Yg&tc%DEuh6%Zc^8'
 AES_IV = b'6oyZDr22E3ychjM%'
 keys = set()  # Conjunto para armazenar as chaves válidas
+
+# Semáforo para limitar requisições simultâneas
+request_semaphore = Semaphore(5)
 
 # Função para gerar UID aleatório de 64 bits
 def generate_random_uid_64():
@@ -29,52 +34,65 @@ def encrypt_message(key, iv, plaintext):
 def fetch_tokens():
     token_url = "https://tokensff.vercel.app/token"
     try:
-        response = requests.get(token_url)
+        response = requests.get(token_url, timeout=10)
         if response.status_code == 200:
             tokens_data = response.json()
             
-            # Handle both formats:
-            # 1. Old format: {"tokens": ["token1", "token2", ...]}
-            # 2. New format: [{"token": "token1"}, {"token": "token2"}, ...]
-            
-            if isinstance(tokens_data, dict) and 'tokens' in tokens_data:
-                # Old format
-                return tokens_data['tokens'][:100]
-            elif isinstance(tokens_data, list):
-                # New format - extract tokens from objects
+            # Verifica se é a nova estrutura (lista de objetos)
+            if isinstance(tokens_data, list):
                 tokens = []
-                for item in tokens_data[:100]:  # Still limit to 100 tokens
+                for item in tokens_data[:100]:  # Limita a 100 tokens
                     if isinstance(item, dict) and 'token' in item:
                         tokens.append(item['token'])
+                print(f"[DEBUG] Tokens recebidos (novo formato): {len(tokens)}")
                 return tokens
+            # Verifica se é o formato antigo (dicionário com chave 'tokens')
+            elif isinstance(tokens_data, dict) and 'tokens' in tokens_data:
+                print(f"[DEBUG] Tokens recebidos (formato antigo): {len(tokens_data['tokens'][:100])}")
+                return tokens_data['tokens'][:100]
             else:
-                print("Formato de tokens desconhecido")
+                print("[ERRO] Formato de tokens desconhecido")
                 return []
         else:
-            print(f"Falha ao buscar os tokens, código de status: {response.status_code}")
+            print(f"[ERRO] Falha ao buscar tokens. Status: {response.status_code}")
             return []
     except Exception as e:
-        print(f"Erro ao buscar os tokens: {e}")
+        print(f"[ERRO] Exceção ao buscar tokens: {str(e)}")
         return []
 
 # Função para enviar requisições com a mensagem
 def send_request(token, hex_encrypted_data):
-    url = "https://client.us.freefiremobile.com/RequestAddingFriend"
-    payload = bytes.fromhex(hex_encrypted_data)
-    headers = {
-        'User-Agent': "Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)",
-        'Connection': "Keep-Alive",
-        'Accept-Encoding': "gzip",
-        'Content-Type': "application/octet-stream",
-        'Expect': "100-continue",
-        'Authorization': f"Bearer {token}",
-        'X-Unity-Version': "2018.4.11f1",
-        'X-GA': "v1 1",
-        'ReleaseVersion': "OB48"
-    }
+    with request_semaphore:
+        url = "https://client.us.freefiremobile.com/RequestAddingFriend"
+        payload = bytes.fromhex(hex_encrypted_data)
+        headers = {
+            'User-Agent': "Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)",
+            'Connection': "Keep-Alive",
+            'Accept-Encoding': "gzip",
+            'Content-Type': "application/octet-stream",
+            'Expect': "100-continue",
+            'Authorization': f"Bearer {token}",
+            'X-Unity-Version': "2018.4.11f1",
+            'X-GA': "v1 1",
+            'ReleaseVersion': "OB48"
+        }
 
-    response = requests.post(url, data=payload, headers=headers)
-    return response.status_code == 200
+        try:
+            # Adiciona um pequeno delay para evitar rate limiting
+            time.sleep(0.3)
+            
+            response = requests.post(url, data=payload, headers=headers, timeout=10)
+            
+            # Log detalhado para diagnóstico
+            log_msg = f"Token: {token[:10]}... Status: {response.status_code}"
+            if response.status_code != 200:
+                log_msg += f" | Response: {response.text[:100]}"
+            print(log_msg)
+            
+            return response.status_code == 200
+        except Exception as e:
+            print(f"[ERRO] Com token {token[:10]}...: {str(e)}")
+            return False
 
 # Adicionar uma nova chave
 @app.route('/make_key', methods=['GET'])
@@ -106,7 +124,6 @@ def send_spam():
     if not api_key or not user_id:
         return jsonify({"error": "Parâmetros obrigatórios ausentes: api_key ou uid"}), 400
 
-    # Verificar se a chave é válida
     if api_key not in keys:
         return jsonify({"error": "Chave de API inválida"}), 403
 
@@ -124,13 +141,29 @@ def send_spam():
     if not tokens:
         return jsonify({"error": "Nenhum token disponível"}), 500
 
+    print(f"[INÍCIO] Enviando solicitações para {len(tokens)} tokens...")
+
     success_count = 0
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        results = executor.map(lambda token: send_request(token, hex_encrypted_data), tokens)
+    failed_count = 0
+    
+    # Reduzindo o número de workers para evitar bloqueios
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(lambda token: send_request(token, hex_encrypted_data), tokens))
 
     success_count = sum(1 for result in results if result)
+    failed_count = len(results) - success_count
+    
+    print(f"[RESULTADO] Total: {len(tokens)}, Sucessos: {success_count}, Falhas: {failed_count}")
 
-    return jsonify({"message": f"{success_count} SOLICITAÇÕES DE AMIZADE ENVIADAS COM SUCESSO"}), 200
+    return jsonify({
+        "message": f"{success_count} SOLICITAÇÕES DE AMIZADE ENVIADAS COM SUCESSO",
+        "details": {
+            "total_tokens": len(tokens),
+            "success": success_count,
+            "failed": failed_count,
+            "success_rate": f"{(success_count/len(tokens))*100:.2f}%"
+        }
+    }), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=50066)
+    app.run(host='0.0.0.0', port=50066, threaded=True)
