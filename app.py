@@ -31,8 +31,13 @@ def fetch_tokens():
     try:
         response = requests.get(token_url)
         if response.status_code == 200:
-            tokens = response.json()['tokens']
-            return tokens[:100]  # Retorna apenas os primeiros 100 tokens
+            tokens_data = response.json()
+            # Verifica se é uma lista de objetos com campo 'token'
+            if isinstance(tokens_data, list) and len(tokens_data) > 0 and 'token' in tokens_data[0]:
+                return [item['token'] for item in tokens_data[:100]]  # Retorna apenas os primeiros 100 tokens
+            else:
+                print("Formato de tokens inválido - esperado lista de objetos com campo 'token'")
+                return []
         else:
             print(f"Falha ao buscar os tokens, código de status: {response.status_code}")
             return []
