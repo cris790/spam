@@ -30,52 +30,32 @@ def encrypt_message(key, iv, plaintext):
     encrypted_message = cipher.encrypt(padded_message)
     return encrypted_message
 
-# Função para buscar os tokens (agora com suporte a 100.000 tokens)
+# Função para buscar 300 tokens
 def fetch_tokens():
     token_url = "https://tokensff.vercel.app/token"
-    all_tokens = []
-    max_tokens = 100000
-    per_page = 1000  # Quantidade de tokens por requisição
-    pages = max_tokens // per_page
-    
     try:
-        for page in range(pages):
-            # Adiciona parâmetro de paginação se o endpoint suportar
-            url = f"{token_url}?page={page+1}&per_page={per_page}"
+        response = requests.get(token_url, timeout=10)
+        if response.status_code == 200:
+            tokens_data = response.json()
             
-            response = requests.get(url, timeout=15)
-            if response.status_code == 200:
-                tokens_data = response.json()
-                
-                # Verifica se é a nova estrutura (lista de objetos)
-                if isinstance(tokens_data, list):
-                    for item in tokens_data:
-                        if isinstance(item, dict) and 'token' in item:
-                            all_tokens.append(item['token'])
-                # Verifica se é o formato antigo (dicionário com chave 'tokens')
-                elif isinstance(tokens_data, dict) and 'tokens' in tokens_data:
-                    all_tokens.extend(tokens_data['tokens'])
-                
-                print(f"[DEBUG] Página {page+1}: {len(tokens_data)} tokens recebidos (Total: {len(all_tokens)})")
-                
-                # Interrompe se já atingiu o máximo necessário
-                if len(all_tokens) >= max_tokens:
-                    break
-                
-                # Pequeno delay entre requisições para evitar sobrecarga
-                time.sleep(0.5)
+            # Verifica se é a nova estrutura (lista de objetos)
+            if isinstance(tokens_data, list):
+                tokens = []
+                for item in tokens_data[:300]:  # Limita a 300 tokens
+                    if isinstance(item, dict) and 'token' in item:
+                        tokens.append(item['token'])
+                print(f"[DEBUG] Tokens recebidos (novo formato): {len(tokens)}")
+                return tokens
+            # Verifica se é o formato antigo (dicionário com chave 'tokens')
+            elif isinstance(tokens_data, dict) and 'tokens' in tokens_data:
+                print(f"[DEBUG] Tokens recebidos (formato antigo): {len(tokens_data['tokens'][:300])}")
+                return tokens_data['tokens'][:300]
             else:
-                print(f"[ERRO] Falha ao buscar tokens na página {page+1}. Status: {response.status_code}")
-        
-        # Limita ao número máximo desejado
-        all_tokens = all_tokens[:max_tokens]
-        print(f"[DEBUG] Tokens recebidos no total: {len(all_tokens)}")
-        
-        if not all_tokens:
-            print("[ERRO] Nenhum token válido encontrado")
+                print("[ERRO] Formato de tokens desconhecido")
+                return []
+        else:
+            print(f"[ERRO] Falha ao buscar tokens. Status: {response.status_code}")
             return []
-        
-        return all_tokens
     except Exception as e:
         print(f"[ERRO] Exceção ao buscar tokens: {str(e)}")
         return []
@@ -166,8 +146,8 @@ def send_spam():
     success_count = 0
     failed_count = 0
     
-    # Aumentando o número de workers para lidar com mais tokens
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    # Ajustando o número de workers para 300 tokens
+    with ThreadPoolExecutor(max_workers=10) as executor:
         results = list(executor.map(lambda token: send_request(token, hex_encrypted_data), tokens))
 
     success_count = sum(1 for result in results if result)
