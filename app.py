@@ -27,7 +27,7 @@ def encrypt_message(key, iv, plaintext):
 
 # Função para buscar os tokens
 def fetch_tokens():
-    token_url = "http://192.168.18.12:5003/token"
+    token_url = "https://tokensff.vercel.app/token"
     try:
         response = requests.get(token_url)
         if response.status_code == 200:
