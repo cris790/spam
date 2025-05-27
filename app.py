@@ -70,7 +70,7 @@ def send_request(token, hex_encrypted_data):
         'Authorization': f"Bearer {token}",
         'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB48"
+        'ReleaseVersion': "OB49"
     }
 
     try:
