@@ -27,7 +27,7 @@ def encrypt_message(key, iv, plaintext):
 
 # Função para buscar os tokens (agora com limite de 350)
 def fetch_tokens():
-    token_url = "https://tokensff.vercel.app/token"
+    token_url = "https://tokenff.discloud.app/token"
     try:
         response = requests.get(token_url)
         if response.status_code == 200:
