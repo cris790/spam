@@ -12,7 +12,7 @@ app = Flask(__name__)
 # Configurações de criptografia
 AES_KEY = b'Yg&tc%DEuh6%Zc^8'
 AES_IV = b'6oyZDr22E3ychjM%'
-keys = set(22)  # Conjunto para armazenar as chaves válidas
+keys = set()  # Conjunto para armazenar as chaves válidas
 
 # Função para gerar UID aleatório de 64 bits
 def generate_random_uid_64():
