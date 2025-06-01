@@ -12,7 +12,6 @@ app = Flask(__name__)
 # Configurações de criptografia
 AES_KEY = b'Yg&tc%DEuh6%Zc^8'
 AES_IV = b'6oyZDr22E3ychjM%'
-keys = set()  # Conjunto para armazenar as chaves válidas
 
 # Função para gerar UID aleatório de 64 bits
 def generate_random_uid_64():
@@ -79,39 +78,13 @@ def send_request(token, hex_encrypted_data):
     except:
         return False
 
-# Adicionar uma nova chave
-@app.route('/make_key', methods=['GET'])
-def make_key():
-    key = request.args.get('key')
-    if not key:
-        return jsonify({"error": "Parâmetro 'key' ausente"}), 400
-    keys.add(key)
-    return jsonify({"message": f"CHAVE '{key}' ADICIONADA COM SUCESSO"}), 200
-
-# Remover uma chave existente
-@app.route('/del_key', methods=['GET'])
-def del_key():
-    key = request.args.get('key')
-    if not key:
-        return jsonify({"error": "Parâmetro 'key' ausente"}), 400
-    if key in keys:
-        keys.remove(key)
-        return jsonify({"message": f"CHAVE '{key}' REMOVIDA COM SUCESSO"}), 200
-    else:
-        return jsonify({"error": f"Chave '{key}' não encontrada"}), 404
-
-# Enviar requisições com a mensagem usando uma chave válida
+# Enviar requisições com a mensagem (agora sem verificação de chave)
 @app.route('/request', methods=['GET'])
 def send_spam():
-    api_key = request.args.get('api_key')
     user_id = request.args.get('uid')
 
-    if not api_key or not user_id:
-        return jsonify({"error": "Parâmetros obrigatórios ausentes: api_key ou uid"}), 400
-
-    # Verificar se a chave é válida
-    if api_key not in keys:
-        return jsonify({"error": "Chave de API inválida"}), 403
+    if not user_id:
+        return jsonify({"error": "Parâmetro obrigatório ausente: uid"}), 400
 
     # Processar a solicitação
     message = mymessage_pb2.MyMessage()
