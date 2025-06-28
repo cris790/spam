@@ -32,22 +32,23 @@ def fetch_tokens():
         if response.status_code == 200:
             tokens_data = response.json()
             
-            valid_tokens = []
+            # Handle both formats:
+            # 1. Old format: {"tokens": ["token1", "token2", ...]}
+            # 2. New format: [{"token": "token1"}, {"token": "token2"}, ...]
             
-            # Handle array of token objects format
-            if isinstance(tokens_data, list):
-                for item in tokens_data[:350]:  # Limit to 350 tokens
-                    if isinstance(item, dict):
-                        if 'token' in item and item['token'] != "N/A":
-                            # Only add if it's a valid token (not "N/A" and not an error)
-                            if 'error' not in item:
-                                valid_tokens.append(item['token'])
-                        elif 'error' in item:
-                            # Skip error entries
-                            print(f"Skipping error entry: {item.get('uid', 'unknown')} - {item['error']}")
-                            continue
-            
-            return valid_tokens
+            if isinstance(tokens_data, dict) and 'tokens' in tokens_data:
+                # Old format
+                return tokens_data['tokens'][:350]  # Aumentado para 350 tokens
+            elif isinstance(tokens_data, list):
+                # New format - extract tokens from objects
+                tokens = []
+                for item in tokens_data[:350]:  # Aumentado para 350 tokens
+                    if isinstance(item, dict) and 'token' in item:
+                        tokens.append(item['token'])
+                return tokens
+            else:
+                print("Formato de tokens desconhecido")
+                return []
         else:
             print(f"Falha ao buscar os tokens, código de status: {response.status_code}")
             return []
