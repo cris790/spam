@@ -38,11 +38,11 @@ def fetch_tokens():
             
             if isinstance(tokens_data, dict) and 'tokens' in tokens_data:
                 # Old format
-                return tokens_data['tokens'][:350]  # Aumentado para 350 tokens
+                return tokens_data['tokens'][:900]  # Aumentado para 350 tokens
             elif isinstance(tokens_data, list):
                 # New format - extract tokens from objects
                 tokens = []
-                for item in tokens_data[:350]:  # Aumentado para 350 tokens
+                for item in tokens_data[:900]:  # Aumentado para 350 tokens
                     if isinstance(item, dict) and 'token' in item:
                         tokens.append(item['token'])
                 return tokens
