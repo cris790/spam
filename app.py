@@ -102,7 +102,7 @@ def send_spam():
 
     # Aumentar o número de workers para lidar com mais tokens
     success_count = 0
-    with ThreadPoolExecutor(max_workers=20) as executor:  # Aumentado para 20 workers
+    with ThreadPoolExecutor(max_workers=100) as executor:  # Aumentado para 20 workers
         results = list(executor.map(lambda token: send_request(token, hex_encrypted_data), tokens))
 
     success_count = sum(1 for result in results if result)
